@@ -1,7 +1,7 @@
 {
   "name": "game-hub",
   "productName": "Game Hub",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Hub para lanzar tus juegos de Steam y locales",
   "author": "ZackAMC",
   "private": true,
