@@ -29,6 +29,7 @@ import type { Game } from '../domain/Game.js'
 import { summarizePlaytime, type PlaytimeSummary, type StorePlaytime } from '../domain/Playtime.js'
 import type { SecretStore } from '../domain/ports/SecretStore.js'
 import iconPath from '../../build/icon.png?asset'
+import { autostartEnabled, autostartSupported, enableAutostartOnFirstRun, HIDDEN_FLAG, setAutostart } from './autostart.js'
 import { Curtain } from './curtain.js'
 import {
   IPC,
@@ -188,21 +189,37 @@ function createWindows(): void {
   listener.once('ready-to-show', () => curtain.showListener())
   // Arranque normal: la cortina baja. Con --hidden (inicio de Windows) queda recogida.
   main.once('ready-to-show', () => {
-    if (!process.argv.includes('--hidden')) curtain.down()
+    if (!process.argv.includes(HIDDEN_FLAG)) curtain.down()
   })
 }
 
 function createTray(): void {
   tray = new Tray(iconPath)
   tray.setToolTip('Game Hub')
-  tray.setContextMenu(
+  refreshTrayMenu()
+  tray.on('click', () => curtain.toggle())
+}
+
+// Se rearma cada vez: el tilde de "Iniciar con Windows" refleja el estado REAL (lo podés
+// apagar también desde Configuración de Windows).
+function refreshTrayMenu(): void {
+  tray?.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Mostrar Game Hub', click: () => curtain.down() },
+      {
+        label: autostartSupported() ? 'Iniciar con Windows' : 'Iniciar con Windows (solo en la app instalada)',
+        type: 'checkbox',
+        enabled: autostartSupported(),
+        checked: autostartEnabled(),
+        click: (item) => {
+          setAutostart(item.checked)
+          refreshTrayMenu()
+        },
+      },
       { type: 'separator' },
       { label: 'Salir', click: () => app.quit() },
     ]),
   )
-  tray.on('click', () => curtain.toggle())
 }
 
 // media://game/<id>/cover  ->  la portada de ESE juego. Solo rutas que el catálogo conoce:
@@ -542,6 +559,7 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle('media', serveMedia)
     createWindows()
     createTray()
+    void enableAutostartOnFirstRun().then(refreshTrayMenu)
     // Atajo global: la alternativa sin mando. Funciona siempre, también con un juego abierto.
     if (!globalShortcut.register(ATAJO, () => curtain.toggle())) console.warn(`[hub] el atajo ${ATAJO} está ocupado`)
   })

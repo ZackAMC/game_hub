@@ -19,6 +19,7 @@ win:
       arch: [x64]
 
 nsis:
+  include: build/installer.nsh # al desinstalar, limpia la entrada de inicio con Windows
   oneClick: false # asistente con pasos, en lugar de instalar sin preguntar
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
