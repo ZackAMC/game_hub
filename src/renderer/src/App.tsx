@@ -20,6 +20,7 @@ import { PlaytimeStats } from './components/PlaytimeStats'
 import { SteamKeyDialog } from './components/SteamKeyDialog'
 import { Toast, type ToastMessage } from './components/Toast'
 import { TopBar, type Filter } from './components/TopBar'
+import { UninstallDialog, type UninstallChoice } from './components/UninstallDialog'
 import type { PadKind } from './input/gamepad'
 import { GamepadDebug } from './input/GamepadDebug'
 import { useGamepad } from './input/useGamepad'
@@ -28,7 +29,7 @@ import { useAchievements } from './useAchievements'
 import { useNavigation, type NavAction } from './useNavigation'
 
 type View = 'home' | 'game'
-type Modal = 'none' | 'achievements' | 'steam-key' | 'artwork' | 'playtime'
+type Modal = 'none' | 'achievements' | 'steam-key' | 'artwork' | 'playtime' | 'uninstall'
 
 // Un ítem del menú ⋯: lo que se ve (MenuItem) + lo que hace.
 interface MenuEntry extends MenuItem {
@@ -59,6 +60,8 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuIndex, setMenuIndex] = useState(0)
   const [pendingConfirm, setPendingConfirm] = useState<string | null>(null) // id del ítem esperando confirmación
+  const [uninstallFocus, setUninstallFocus] = useState<UninstallChoice>('cancel')
+  const [uninstalling, setUninstalling] = useState(false)
 
   // F9: panel de diagnóstico de mandos.
   useEffect(() => {
@@ -104,6 +107,24 @@ export function App() {
   useEffect(() => {
     void window.hub.steamKeyStatus().then(setKeyStatus)
   }, [])
+
+  // Al volver a la ventana, refrescamos: así aparecen los juegos que Steam desinstaló
+  // (o instaló) mientras estabas en otra cosa. Con un mínimo de 3 s entre refrescos.
+  useEffect(() => {
+    let last = 0
+    const onFocus = () => {
+      if (Date.now() - last < 3000) return
+      last = Date.now()
+      void window.hub.list().then(applyLibrary)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [applyLibrary])
+
+  // Si el juego de la página que estás viendo dejó de existir (desinstalado), volvemos al inicio.
+  useEffect(() => {
+    if (view === 'game' && library && selectedId && !library.games.some((g) => g.id === selectedId)) setView('home')
+  }, [library, view, selectedId])
 
   // ---------- Acciones sobre juegos ----------
 
@@ -166,6 +187,39 @@ export function App() {
       notify(`${game.title} se quitó de la biblioteca (los archivos siguen en el disco)`)
     } catch (err) {
       notify(message(err), 'error')
+    }
+  }
+
+  // Steam: le pasamos la posta y Steam pide su propia confirmación.
+  async function uninstallSteam(game: GameDTO) {
+    try {
+      await window.hub.uninstall(game.id)
+      notify(`Steam te va a pedir confirmación para desinstalar ${game.title}`)
+    } catch (err) {
+      notify(message(err), 'error')
+    }
+  }
+
+  function openUninstall() {
+    setUninstallFocus('cancel') // por defecto, NO borrar
+    openModal('uninstall')
+  }
+
+  async function chooseUninstall(choice: UninstallChoice, game: GameDTO, allowed: boolean) {
+    if (choice === 'cancel') return closeModal()
+    if (!allowed || uninstalling) return
+    setUninstalling(true)
+    try {
+      const result = await window.hub.uninstall(game.id)
+      applyLibrary(result.library)
+      sounds.back()
+      setModal('none')
+      setView('home')
+      notify(`${game.title} se desinstaló. Está en la Papelera por si te arrepentís.`, 'success')
+    } catch (err) {
+      notify(message(err), 'error')
+    } finally {
+      setUninstalling(false)
     }
   }
 
@@ -257,6 +311,12 @@ export function App() {
             ]
           : []),
         { id: 'folder', label: 'Abrir carpeta del juego', run: () => void openFolder(selected) },
+        {
+          id: 'uninstall',
+          label: 'Desinstalar',
+          danger: true,
+          run: () => (selected.source === 'steam' ? void uninstallSteam(selected) : openUninstall()),
+        },
         ...(selected.source === 'local'
           ? [
               {
@@ -305,6 +365,16 @@ export function App() {
 
   function handleAction(action: NavAction) {
     // Con un diálogo abierto, las acciones son DEL diálogo.
+    if (modal === 'uninstall') {
+      if (action === 'left' || action === 'right') {
+        sounds.move()
+        setUninstallFocus((f) => (f === 'cancel' ? 'confirm' : 'cancel'))
+      }
+      // El "allowed" real lo decide Main; acá solo evitamos un pedido inútil si ya sabemos que no.
+      if (action === 'confirm' && selected) void chooseUninstall(uninstallFocus, selected, true)
+      if (action === 'back') closeModal()
+      return
+    }
     if (modal !== 'none') {
       if (action === 'back') closeModal()
       if (modal === 'achievements' && (action === 'up' || action === 'down')) {
@@ -538,6 +608,16 @@ export function App() {
             setModal('none')
           }}
           onClose={closeModal}
+        />
+      )}
+      {modal === 'uninstall' && selected?.source === 'local' && (
+        <UninstallDialog
+          key={selected.id}
+          game={selected}
+          focus={uninstallFocus}
+          onFocus={setUninstallFocus}
+          working={uninstalling}
+          onChoose={(choice, preview) => void chooseUninstall(choice, selected, preview?.allowed === true)}
         />
       )}
       {modal === 'steam-key' && (

@@ -20,6 +20,8 @@ export const IPC = {
   sessionChanged: 'session:changed',
   setManualPlaytime: 'playtime:set-manual',
   openFolder: 'games:open-folder',
+  uninstallPreview: 'games:uninstall-preview',
+  uninstall: 'games:uninstall',
   sgdbKeyStatus: 'sgdb-key:status',
   setSgdbKey: 'sgdb-key:set',
   openSgdbKeyPage: 'sgdb-key:open-page',
@@ -56,6 +58,15 @@ export interface PlaytimeDTO {
   weekMs: number
   monthMs: number
   lastSession: { startedAt: number; durationMs: number } | null
+}
+
+export type UninstallPreviewDTO =
+  | { allowed: true; folder: string; bytes: number; files: number }
+  | { allowed: false; folder: string; reason: string }
+
+export interface UninstallResultDTO {
+  outcome: 'delegated' | 'removed' // delegated = Steam va a pedir su propia confirmación
+  library: LibraryDTO
 }
 
 export interface LibraryDTO {
@@ -119,6 +130,8 @@ export interface GameHubApi {
   onSessionChange(listener: (session: SessionDTO) => void): () => void
   setManualPlaytime(gameId: string, hours: number): Promise<LibraryDTO>
   openFolder(gameId: string): Promise<void> // por ID: la UI nunca manda una ruta
+  uninstallPreview(gameId: string): Promise<UninstallPreviewDTO> // solo juegos locales
+  uninstall(gameId: string): Promise<UninstallResultDTO>
   sgdbKeyStatus(): Promise<boolean> // ¿está configurada? La key nunca vuelve a la UI.
   setSgdbKey(key: string): Promise<boolean> // verifica antes de guardar
   openSgdbKeyPage(): Promise<void>

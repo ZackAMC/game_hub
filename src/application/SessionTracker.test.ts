@@ -26,6 +26,7 @@ function setup(answers: (boolean | Error)[]) {
     id: 'local',
     list: async () => [],
     launch: async () => {},
+    uninstall: async () => 'removed',
     isRunning: async () => {
       const next = answers.shift() ?? false
       if (next instanceof Error) throw next

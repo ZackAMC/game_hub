@@ -16,6 +16,7 @@ import { SafeStorageSecretStore } from '../adapters/secrets/SafeStorageSecretSto
 import { detectSteamId } from '../adapters/steam/loginUsers.js'
 import { isValidApiKeyFormat, SteamAchievements, type HttpResult } from '../adapters/steam/SteamAchievements.js'
 import { SteamSource } from '../adapters/steam/SteamSource.js'
+import { folderStats } from '../adapters/system/folderStats.js'
 import { isProcessRunning } from '../adapters/system/processes.js'
 import { AchievementService, type AchievementResult } from '../application/AchievementService.js'
 import { ArtworkService } from '../application/ArtworkService.js'
@@ -33,6 +34,8 @@ import {
   type PlaytimeDTO,
   type SessionDTO,
   type SteamKeyStatusDTO,
+  type UninstallPreviewDTO,
+  type UninstallResultDTO,
 } from '../shared/contract.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -62,6 +65,9 @@ function compose(): void {
     isProcessRunning,
     fileExists,
     newId: randomUUID,
+    trash: (path) => shell.trashItem(path),
+    folderStats,
+    userHome: app.getPath('home'),
   })
   const steam = new SteamSource((url) => shell.openExternal(url))
   // ESCALABLE: sumar una tienda es agregar su adaptador a esta lista.
@@ -146,6 +152,7 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
     if (!event.sender.isDestroyed()) event.sender.send(IPC.sessionChanged, { gameId, state, durationMs })
   }
   send('starting')
+  trackedGameId = gameId
 
   // No esperamos: el seguimiento dura lo que dure la partida. El IPC responde ya.
   void sessions.track(game, {
@@ -154,11 +161,15 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
       win?.minimize() // el juego queda solo en pantalla
     },
     onEnded: async (_g, durationMs) => {
+      trackedGameId = null
       if (game.source === 'local') await local.recordSession(game.nativeId, new Date(Date.now() - durationMs), durationMs)
       bringToFront(win)
       send('ended', durationMs)
     },
-    onNeverStarted: () => send('not-started'),
+    onNeverStarted: () => {
+      trackedGameId = null
+      send('not-started')
+    },
   })
 })
 
@@ -181,6 +192,28 @@ ipcMain.handle(IPC.openFolder, async (_event, gameId: unknown) => {
   const failure = await shell.openPath(game.installDir) // devuelve "" si salió bien
   if (failure) throw new Error(`No se pudo abrir la carpeta: ${failure}`)
 })
+
+ipcMain.handle(IPC.uninstallPreview, async (_event, gameId: unknown): Promise<UninstallPreviewDTO> => {
+  if (typeof gameId !== 'string') throw new Error('Id inválido')
+  const game = catalog.get(gameId)
+  if (!game || game.source !== 'local') throw new Error('Solo los juegos locales tienen vista previa')
+  return local.previewUninstall(game)
+})
+
+ipcMain.handle(IPC.uninstall, async (_event, gameId: unknown): Promise<UninstallResultDTO> => {
+  if (typeof gameId !== 'string') throw new Error('Id inválido')
+  if (catalog.get(gameId) && sessionsBusyWith(gameId)) throw new Error('Cerrá el juego antes de desinstalarlo')
+  const outcome = await catalog.uninstall(gameId)
+  // Si se borró, también sus imágenes (las de la carpeta del hub; no las tuyas).
+  if (outcome === 'removed') await artwork.clear(gameId).catch(() => {})
+  return { outcome, library: toLibraryDTO(await catalog.refresh()) }
+})
+
+// Juego que el hub está siguiendo en este momento (lanzado y todavía abierto).
+let trackedGameId: string | null = null
+function sessionsBusyWith(gameId: string): boolean {
+  return trackedGameId === gameId
+}
 
 // Windows no deja que una app "se robe" el foco así nomás (para que nada te interrumpa mientras
 // escribís). El truco estándar: ponerla "siempre visible" un instante, enfocarla y sacarle ese modo.

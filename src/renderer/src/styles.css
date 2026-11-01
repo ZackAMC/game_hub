@@ -514,6 +514,35 @@ button {
   margin: 4px 0 26px;
 }
 
+/* ---------- Desinstalar ---------- */
+
+.uninstall-target {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  word-break: break-all;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.btn.danger-solid {
+  background: #b93a3a;
+  color: #fff;
+}
+
+.dialog-actions .btn.focused {
+  box-shadow: 0 0 0 3px var(--text);
+}
+
 /* ---------- Tiempo de juego ---------- */
 
 .playtime {

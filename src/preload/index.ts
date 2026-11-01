@@ -31,6 +31,8 @@ const api: GameHubApi = {
   },
   setManualPlaytime: (gameId, hours) => ipcRenderer.invoke(IPC.setManualPlaytime, gameId, hours),
   openFolder: (gameId) => ipcRenderer.invoke(IPC.openFolder, gameId),
+  uninstallPreview: (gameId) => ipcRenderer.invoke(IPC.uninstallPreview, gameId),
+  uninstall: (gameId) => ipcRenderer.invoke(IPC.uninstall, gameId),
   sgdbKeyStatus: () => ipcRenderer.invoke(IPC.sgdbKeyStatus),
   setSgdbKey: (key) => ipcRenderer.invoke(IPC.setSgdbKey, key),
   openSgdbKeyPage: () => ipcRenderer.invoke(IPC.openSgdbKeyPage),

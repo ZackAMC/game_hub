@@ -6,7 +6,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { gameId, type Game } from '../../domain/Game.js'
-import type { GameSource } from '../../domain/ports/GameSource.js'
+import type { GameSource, UninstallOutcome } from '../../domain/ports/GameSource.js'
 import { parseAppManifest, parseLibraryFolders, type SteamApp } from './manifests.js'
 import { exists, findSteamPath } from './steamPath.js'
 
@@ -34,6 +34,12 @@ export class SteamSource implements GameSource {
   async launch(game: Game): Promise<void> {
     // Steam se encarga de todo: actualizaciones, DRM, overlay. Nosotros solo se lo pedimos.
     await this.openUrl(`steam://rungameid/${game.nativeId}`)
+  }
+
+  // Steam muestra SU confirmación y desinstala él: maneja DLCs, contenido de Workshop, etc.
+  async uninstall(game: Game): Promise<UninstallOutcome> {
+    await this.openUrl(`steam://uninstall/${game.nativeId}`)
+    return 'delegated'
   }
 
   // Steam publica en el registro el appid del juego que está corriendo (0 = ninguno).

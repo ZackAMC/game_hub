@@ -37,6 +37,9 @@ class FakeSource implements GameSource {
   async isRunning(): Promise<boolean> {
     return false
   }
+  async uninstall(): Promise<'removed'> {
+    return 'removed'
+  }
 }
 
 test('junta todas las fuentes y ordena: recientes primero, después alfabético', async () => {

@@ -3,7 +3,8 @@
 
 import { basename, dirname, extname } from 'node:path'
 import { gameId, type Game } from '../../domain/Game.js'
-import type { GameSource } from '../../domain/ports/GameSource.js'
+import type { GameSource, UninstallOutcome } from '../../domain/ports/GameSource.js'
+import { checkUninstallFolder } from '../../domain/UninstallGuard.js'
 import type { LocalGameRecord, LocalGameStore } from '../../domain/ports/LocalGameStore.js'
 
 // Todo lo que toca el sistema operativo entra por acá. En los tests, son fakes.
@@ -15,7 +16,15 @@ export interface LocalSourceDeps {
   fileExists: (path: string) => Promise<boolean>
   newId: () => string
   now?: () => Date
+  // Para desinstalar:
+  trash: (path: string) => Promise<void> // mandar a la Papelera
+  folderStats: (path: string) => Promise<{ bytes: number; files: number }>
+  userHome: string
 }
+
+export type UninstallPreview =
+  | { allowed: true; folder: string; bytes: number; files: number }
+  | { allowed: false; folder: string; reason: string }
 
 export class LocalSource implements GameSource {
   readonly id = 'local' as const
@@ -81,6 +90,29 @@ export class LocalSource implements GameSource {
 
   async setArtwork(nativeId: string, patch: { coverPath?: string | null; heroPath?: string | null }): Promise<void> {
     await this.update(nativeId, (r) => ({ ...r, ...patch }))
+  }
+
+  // Qué se borraría, ANTES de borrar: carpeta, tamaño y si la regla de seguridad lo permite.
+  async previewUninstall(game: Game): Promise<UninstallPreview> {
+    const folder = game.installDir
+    const guard = await this.guard(game)
+    if (!guard.allowed) return { allowed: false, folder, reason: guard.reason }
+    const stats = await this.deps.folderStats(folder)
+    return { allowed: true, folder, ...stats }
+  }
+
+  async uninstall(game: Game): Promise<UninstallOutcome> {
+    // La regla se vuelve a aplicar ACÁ: no importa qué haya mostrado (o salteado) la UI.
+    const guard = await this.guard(game)
+    if (!guard.allowed) throw new Error(`No se puede desinstalar: ${guard.reason}`)
+    await this.deps.trash(game.installDir)
+    await this.remove(game.nativeId)
+    return 'removed'
+  }
+
+  private async guard(game: Game) {
+    const others = (await this.deps.store.load()).filter((r) => r.id !== game.nativeId).map((r) => dirname(r.executable))
+    return checkUninstallFolder(game.installDir, others, this.deps.userHome)
   }
 
   // Quitar de la BIBLIOTECA (no borra archivos del disco).

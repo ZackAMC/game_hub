@@ -19,6 +19,7 @@ function setup() {
   // Set mutable: los tests pueden "borrar" archivos. Comparación sin mayúsculas, como Windows.
   const existing = new Set(['f:\\juegos\\hades\\hades.exe'])
   const running: string[] = []
+  const trashed: string[] = []
   let n = 0
   const source = new LocalSource({
     store,
@@ -30,11 +31,39 @@ function setup() {
       running.push(`${folder}|${exeName}`)
       return true
     },
+    trash: async (path) => {
+      trashed.push(path)
+    },
+    folderStats: async () => ({ bytes: 1234, files: 5 }),
+    userHome: 'C:\\Users\\yo',
     newId: () => `id${++n}`,
     now: () => new Date('2026-11-01T12:00:00Z'),
   })
-  return { store, spawned, source, existing, running }
+  return { store, spawned, source, existing, running, trashed }
 }
+
+test('desinstalar manda la carpeta a la Papelera y saca el juego de la biblioteca', async () => {
+  const { source, trashed } = setup()
+  await source.add('F:\\Juegos\\Hades\\Hades.exe')
+  const [game] = await source.list()
+  assert.deepEqual(await source.previewUninstall(game!), { allowed: true, folder: 'F:\\Juegos\\Hades', bytes: 1234, files: 5 })
+  assert.equal(await source.uninstall(game!), 'removed')
+  assert.deepEqual(trashed, ['F:\\Juegos\\Hades'])
+  assert.deepEqual(await source.list(), [])
+})
+
+test('NO desinstala una carpeta que contiene otro juego de la biblioteca', async () => {
+  const { source, trashed, existing } = setup()
+  existing.add('f:\\juegos\\launcher.exe')
+  await source.add('F:\\Juegos\\Hades\\Hades.exe')
+  await source.add('F:\\Juegos\\launcher.exe') // su carpeta es F:\Juegos, que contiene a Hades
+  const launcher = (await source.list()).find((g) => g.executable === 'F:\\Juegos\\launcher.exe')!
+  const preview = await source.previewUninstall(launcher)
+  assert.equal(preview.allowed, false)
+  // aunque la UI ignorara el preview, uninstall vuelve a chequear y se niega
+  await assert.rejects(source.uninstall(launcher), /otros juegos/)
+  assert.deepEqual(trashed, [])
+})
 
 test('isRunning pregunta por la CARPETA del juego y el nombre del .exe (sin extensión)', async () => {
   const { source, running } = setup()

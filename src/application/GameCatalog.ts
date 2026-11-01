@@ -2,7 +2,7 @@
 // No conoce Steam ni archivos .exe: solo habla con el puerto GameSource.
 
 import type { Game, SourceId } from '../domain/Game.js'
-import type { GameSource } from '../domain/ports/GameSource.js'
+import type { GameSource, UninstallOutcome } from '../domain/ports/GameSource.js'
 
 export interface SourceError {
   source: SourceId
@@ -41,11 +41,21 @@ export class GameCatalog {
   }
 
   async launch(id: string): Promise<void> {
+    const { game, source } = this.resolve(id)
+    await source.launch(game)
+  }
+
+  async uninstall(id: string): Promise<UninstallOutcome> {
+    const { game, source } = this.resolve(id)
+    return source.uninstall(game)
+  }
+
+  private resolve(id: string): { game: Game; source: GameSource } {
     const game = this.games.get(id)
     if (!game) throw new Error('Ese juego no está en la biblioteca')
     const source = this.sources.find((s) => s.id === game.source)
     if (!source) throw new Error(`No hay una fuente registrada para "${game.source}"`)
-    await source.launch(game)
+    return { game, source }
   }
 }
 
