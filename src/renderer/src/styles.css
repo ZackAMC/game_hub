@@ -311,7 +311,9 @@ button {
 .shelf {
   display: flex;
   gap: 18px;
-  padding: 26px 64px 44px;
+  /* Arriba: la tarjeta seleccionada crece 14% DESDE ABAJO (~28px) + 3px de borde. Con overflow-x: auto
+     el eje Y también recorta (CSS no permite "x scroll, y visible"), así que el aire tiene que estar acá. */
+  padding: 40px 64px 44px;
   overflow-x: auto;
   scrollbar-width: none;
   /* desvanece los bordes para que se note que hay más a los costados */
@@ -1052,5 +1054,191 @@ button.link {
   * {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ---------- Intro ----------
+   Línea de tiempo (sincronizada con sounds.intro()):
+   0.0s brillo · 0.25–1.45s anillo se dibuja + punto en órbita · 1.5s el play florece · 1.9s nombre.
+   Nada se anima en "waiting": la cortina todavía está bajando. */
+.intro {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--bg);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    opacity 650ms ease,
+    transform 650ms ease;
+}
+
+.intro.leaving {
+  opacity: 0;
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+.intro.leaving.skipped {
+  transition-duration: 300ms;
+}
+
+/* TODAS las capas son absolutas y se centran con inset: 0 + margin: auto.
+   Nada depende del flujo: una capa nueva no puede empujar a las otras. */
+.intro-glow {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 90vmin;
+  height: 90vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.32), rgba(124, 92, 246, 0.12) 45%, transparent 70%);
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.intro-particles {
+  position: absolute;
+  inset: 0;
+}
+
+.intro-particles span {
+  position: absolute;
+  border-radius: 50%;
+  background: #cfe3ff;
+  box-shadow: 0 0 8px rgba(150, 200, 255, 0.9);
+  opacity: 0;
+}
+
+.intro-mark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 36vmin;
+  height: 36vmin;
+  filter: drop-shadow(0 0 36px rgba(102, 192, 244, 0.35));
+}
+
+.intro-mark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.intro-ring {
+  stroke-dasharray: 84 100; /* 84 de 100: el anillo queda abierto donde aterriza el punto */
+  stroke-dashoffset: 84; /* empieza sin dibujar */
+}
+
+.intro-orbit {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transform: rotate(-320deg);
+  opacity: 0;
+}
+
+.intro-play {
+  transform-box: fill-box;
+  transform-origin: 45% 50%;
+  transform: scale(0.4);
+  opacity: 0;
+}
+
+.intro-word {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  top: calc(50% + 22vmin);
+  font-size: clamp(18px, 2.4vw, 34px);
+  font-weight: 600;
+  letter-spacing: 0.9em;
+  text-indent: 0.9em; /* compensa el espacio de la última letra: queda centrado de verdad */
+  color: var(--text);
+  opacity: 0;
+}
+
+.intro:not(.waiting) .intro-glow {
+  animation: intro-glow 1.4s var(--ease) forwards;
+}
+.intro:not(.waiting) .intro-particles span {
+  animation-name: intro-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.intro:not(.waiting) .intro-ring {
+  animation: intro-ring 1.2s cubic-bezier(0.45, 0, 0.2, 1) 0.25s forwards;
+}
+.intro:not(.waiting) .intro-orbit {
+  animation: intro-orbit 1.3s cubic-bezier(0.3, 0.6, 0.2, 1) 0.2s forwards;
+}
+.intro:not(.waiting) .intro-play {
+  animation: intro-play 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) 1.5s forwards;
+}
+.intro:not(.waiting) .intro-mark {
+  animation: intro-bloom 1.4s ease-out 1.5s;
+}
+.intro:not(.waiting) .intro-word {
+  animation: intro-word 0.9s var(--ease) 1.9s forwards;
+}
+
+@keyframes intro-glow {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes intro-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-140px);
+  }
+}
+@keyframes intro-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes intro-orbit {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+}
+@keyframes intro-play {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes intro-bloom {
+  0% {
+    filter: drop-shadow(0 0 36px rgba(102, 192, 244, 0.35));
+  }
+  25% {
+    filter: drop-shadow(0 0 90px rgba(150, 170, 255, 0.85));
+  }
+  100% {
+    filter: drop-shadow(0 0 36px rgba(102, 192, 244, 0.35));
+  }
+}
+@keyframes intro-word {
+  to {
+    opacity: 1;
+    letter-spacing: 0.38em;
+    text-indent: 0.38em;
   }
 }
