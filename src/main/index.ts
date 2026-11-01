@@ -134,6 +134,7 @@ function createWindows(): void {
   const main = new BrowserWindow({
     show: false,
     frame: false,
+    roundedCorners: false, // Electron 43+ redondea las ventanas sin marco: la cortina es el monitor entero
     transparent: true, // mientras la cortina se desliza, se ve el escritorio debajo
     backgroundColor: '#00000000',
     resizable: false,
@@ -153,6 +154,7 @@ function createWindows(): void {
   const listener = new BrowserWindow({
     show: false,
     frame: false,
+    roundedCorners: false,
     transparent: true,
     backgroundColor: '#00000000',
     width: 1,
