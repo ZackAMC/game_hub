@@ -16,6 +16,7 @@ interface ToneOptions {
   decay?: number
   gain?: number
   toFreq?: number // si se define, la nota se desliza hasta esta frecuencia
+  bus?: GainNode // salida propia (ej: la intro), para poder apagarla toda junta
 }
 
 const MUTE_KEY = 'hub.muted'
@@ -83,9 +84,55 @@ class SoundEngine {
     this.tone({ freq: 247, type: 'triangle', start: 0.11, decay: 0.22, gain: 0.13 })
   }
 
+  /**
+   * La intro: ~4 s sincronizados con la animación (ver Intro.tsx).
+   * Todo pasa por un BUS propio con más reverb: suena "grande", como un encendido.
+   * Devuelve una función que la apaga con un fundido corto (para cuando la salteás).
+   */
+  intro(): () => void {
+    const silent = () => {}
+    if (this.muted) return silent
+    const ctx = this.ensureContext()
+    if (!ctx || !this.master || !this.reverbSend) return silent
+
+    const bus = ctx.createGain()
+    bus.connect(this.master)
+    const wet = ctx.createGain()
+    wet.gain.value = 1.8 // más sala que los sonidos de la interfaz
+    bus.connect(wet)
+    wet.connect(this.reverbSend)
+    const play = (o: ToneOptions) => this.tone({ ...o, bus })
+
+    // 0 s: colchón grave que crece despacio (La y Mi: una quinta, abierta, sin "tristeza" ni "alegría").
+    play({ freq: 110, attack: 1.2, decay: 2.8, gain: 0.07 })
+    play({ freq: 164.81, attack: 1.4, decay: 2.6, gain: 0.05 })
+    play({ freq: 220, type: 'triangle', attack: 1.6, decay: 2.2, gain: 0.025 })
+
+    // 0.35–1.2 s: mientras se dibuja el anillo, un arpegio pentatónico que sube, como destellos.
+    const shimmer = [880, 987.77, 1108.73, 1318.51, 1479.98, 1760]
+    shimmer.forEach((freq, i) => play({ freq, start: 0.35 + i * 0.15, attack: 0.02, decay: 0.9, gain: 0.03 }))
+
+    // 1.5 s: el punto aterriza -> campana.
+    play({ freq: 2637, start: 1.5, attack: 0.005, decay: 1.6, gain: 0.04 })
+    play({ freq: 1318.51, start: 1.5, attack: 0.005, decay: 1.2, gain: 0.04 })
+
+    // 1.55 s: el play florece -> acorde amplio (La mayor con novena) que queda flotando.
+    for (const freq of [440, 554.37, 659.25, 987.77]) {
+      play({ freq, start: 1.55, attack: 0.25, decay: 2.4, gain: 0.045 })
+    }
+    play({ freq: 110, type: 'triangle', start: 1.55, attack: 0.3, decay: 2.2, gain: 0.05 })
+
+    return () => {
+      const t = ctx.currentTime
+      bus.gain.cancelScheduledValues(t)
+      bus.gain.setValueAtTime(bus.gain.value, t)
+      bus.gain.linearRampToValueAtTime(0, t + 0.3)
+    }
+  }
+
   // --- Motor ---
 
-  private tone({ freq, type = 'sine', start = 0, attack = 0.004, decay = 0.12, gain = 0.2, toFreq }: ToneOptions): void {
+  private tone({ freq, type = 'sine', start = 0, attack = 0.004, decay = 0.12, gain = 0.2, toFreq, bus }: ToneOptions): void {
     if (this.muted) return
     const ctx = this.ensureContext()
     if (!ctx || !this.master || !this.reverbSend) return
@@ -106,8 +153,12 @@ class SoundEngine {
     env.gain.exponentialRampToValueAtTime(0.0001, end)
 
     osc.connect(env)
-    env.connect(this.master) // señal "seca"
-    env.connect(this.reverbSend) // y una parte va a la reverb
+    if (bus) {
+      env.connect(bus) // el bus decide cuánto va seco y cuánto a la reverb
+    } else {
+      env.connect(this.master) // señal "seca"
+      env.connect(this.reverbSend) // y una parte va a la reverb
+    }
     osc.start(t0)
     osc.stop(end + 0.05) // el nodo se libera solo al terminar
   }

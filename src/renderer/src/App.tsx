@@ -16,6 +16,7 @@ import { GamePage, PAGE_ACTIONS, type MenuItem, type PageAction } from './compon
 import { GameShelf } from './components/GameShelf'
 import { HomeSummary } from './components/HomeSummary'
 import { PlaytimeDialog } from './components/PlaytimeDialog'
+import { Intro, type IntroPhase } from './components/Intro'
 import { PlaytimeStats } from './components/PlaytimeStats'
 import { RenameDialog } from './components/RenameDialog'
 import { SteamKeyDialog } from './components/SteamKeyDialog'
@@ -49,6 +50,7 @@ export function App() {
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [muted, setMuted] = useState(() => sounds.isMuted())
   const [curtain, setCurtain] = useState<CurtainState>('up')
+  const [intro, setIntro] = useState<IntroPhase>('waiting')
   const [modal, setModal] = useState<Modal>('none')
   const [keyStatus, setKeyStatus] = useState<SteamKeyStatusDTO | null>(null)
   const [padDebug, setPadDebug] = useState(false)
@@ -97,6 +99,13 @@ export function App() {
     void window.hub.curtainState().then(setCurtain)
     return window.hub.onCurtainChange(setCurtain)
   }, [])
+
+  // La intro suena la PRIMERA vez que baja la cortina en cada arranque. Si la app arrancó con
+  // Windows (cortina recogida), espera a que la llames: nunca suena "a ciegas".
+  useEffect(() => {
+    if (curtain === 'down' && intro === 'waiting') setIntro('playing')
+  }, [curtain, intro])
+  const skipIntro = useCallback(() => setIntro((p) => (p === 'playing' || p === 'waiting' ? 'leaving' : p)), [])
 
   const visible = useMemo(
     () => (library?.games ?? []).filter((g) => filter === 'all' || g.source === filter),
@@ -366,6 +375,11 @@ export function App() {
   // ---------- Entrada: teclado y mando terminan acá ----------
 
   function handleAction(action: NavAction) {
+    // Durante la intro, cualquier botón la saltea y NO hace nada más (A no debe lanzar un juego de fondo).
+    if (intro !== 'done') {
+      if (intro === 'playing') skipIntro()
+      return
+    }
     // Con un diálogo abierto, las acciones son DEL diálogo.
     if (modal === 'uninstall') {
       if (action === 'left' || action === 'right') {
@@ -500,6 +514,9 @@ export function App() {
 
   return (
     <div className={`hub curtain ${curtain} view-${view}`}>
+      {intro !== 'done' && (
+        <Intro phase={intro} onFinish={() => setIntro('leaving')} onGone={() => setIntro('done')} onSkip={skipIntro} />
+      )}
       <Backdrop game={selected} />
       <TopBar
         filter={filter}
