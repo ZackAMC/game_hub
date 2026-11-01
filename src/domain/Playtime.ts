@@ -61,3 +61,10 @@ function sumSince(sessions: PlaySession[], from: Date, now: Date): number {
     return acc + Math.max(0, Math.min(end, now.getTime()) - Math.max(start, from.getTime()))
   }, 0)
 }
+
+// Tiempo que INFORMA una tienda (Steam). No hay sesiones: solo los totales que ella expone.
+// Es otro tipo de dato a propósito: no inventamos "esta semana" con algo que no sabemos.
+export interface StorePlaytime {
+  totalMs: number
+  recentMs: number // últimas 2 semanas, como lo define Steam
+}

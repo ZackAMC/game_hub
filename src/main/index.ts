@@ -15,15 +15,17 @@ import { LocalSource } from '../adapters/local/LocalSource.js'
 import { SafeStorageSecretStore } from '../adapters/secrets/SafeStorageSecretStore.js'
 import { detectSteamId } from '../adapters/steam/loginUsers.js'
 import { isValidApiKeyFormat, SteamAchievements, type HttpResult } from '../adapters/steam/SteamAchievements.js'
+import { SteamPlaytime } from '../adapters/steam/SteamPlaytime.js'
 import { SteamSource } from '../adapters/steam/SteamSource.js'
 import { folderStats } from '../adapters/system/folderStats.js'
 import { isProcessRunning } from '../adapters/system/processes.js'
 import { AchievementService, type AchievementResult } from '../application/AchievementService.js'
 import { ArtworkService } from '../application/ArtworkService.js'
-import { GameCatalog, type CatalogSnapshot } from '../application/GameCatalog.js'
+import { GameCatalog } from '../application/GameCatalog.js'
 import { SessionTracker } from '../application/SessionTracker.js'
+import { StorePlaytimeService } from '../application/StorePlaytimeService.js'
 import type { Game } from '../domain/Game.js'
-import { summarizePlaytime, type PlaytimeSummary } from '../domain/Playtime.js'
+import { summarizePlaytime, type PlaytimeSummary, type StorePlaytime } from '../domain/Playtime.js'
 import type { SecretStore } from '../domain/ports/SecretStore.js'
 import {
   IPC,
@@ -55,6 +57,7 @@ let artwork: ArtworkService
 let sgdbKey: SecretStore
 let sgdb: SteamGridDbArtwork
 let sessions: SessionTracker
+let storePlaytime: StorePlaytimeService
 
 function compose(): void {
   const userData = app.getPath('userData')
@@ -85,6 +88,13 @@ function compose(): void {
     fetchJson,
   })
   achievements = new AchievementService((id) => catalog.get(id), [steamAchievements])
+  storePlaytime = new StorePlaytimeService({
+    // ESCALABLE: otra tienda con horas (Epic, GOG) es otro adaptador en esta lista.
+    providers: [new SteamPlaytime({ getApiKey: () => steamKey.get(), getSteamId: detectSteamId, fetchJson })],
+    now: Date.now,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    onError: (source, error) => console.warn(`[playtime] ${source}:`, error),
+  })
 
   sgdbKey = new SafeStorageSecretStore(join(userData, 'steamgriddb-key.bin'))
   sgdb = new SteamGridDbArtwork({ getApiKey: () => sgdbKey.get(), fetchJson, fetchImage })
@@ -139,7 +149,7 @@ function serveMedia(request: Request): Promise<Response> | Response {
 
 // --- IPC: todo lo que llega del renderer es input NO confiable ---
 
-ipcMain.handle(IPC.list, async () => toLibraryDTO(await catalog.refresh()))
+ipcMain.handle(IPC.list, async () => await library())
 
 ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
   if (typeof gameId !== 'string') throw new Error('Id inválido')
@@ -163,6 +173,8 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
     onEnded: async (_g, durationMs) => {
       trackedGameId = null
       if (game.source === 'local') await local.recordSession(game.nativeId, new Date(Date.now() - durationMs), durationMs)
+      // Steam sube las horas al terminar la partida: el próximo refresco las vuelve a pedir.
+      else storePlaytime.invalidate(game.source)
       bringToFront(win)
       send('ended', durationMs)
     },
@@ -182,7 +194,7 @@ ipcMain.handle(IPC.setManualPlaytime, async (_event, gameId: unknown, hours: unk
   const game = catalog.get(gameId)
   if (!game || game.source !== 'local') throw new Error('Solo se puede ajustar el tiempo de juegos locales')
   await local.setManualPlaytime(game.nativeId, hours * 3_600_000)
-  return toLibraryDTO(await catalog.refresh())
+  return await library()
 })
 
 ipcMain.handle(IPC.openFolder, async (_event, gameId: unknown) => {
@@ -206,7 +218,7 @@ ipcMain.handle(IPC.uninstall, async (_event, gameId: unknown): Promise<Uninstall
   const outcome = await catalog.uninstall(gameId)
   // Si se borró, también sus imágenes (las de la carpeta del hub; no las tuyas).
   if (outcome === 'removed') await artwork.clear(gameId).catch(() => {})
-  return { outcome, library: toLibraryDTO(await catalog.refresh()) }
+  return { outcome, library: await library() }
 })
 
 // Juego que el hub está siguiendo en este momento (lanzado y todavía abierto).
@@ -238,7 +250,7 @@ ipcMain.handle(IPC.addLocal, async (event): Promise<{ library: LibraryDTO; added
   if (result.canceled || !exe) return null
 
   const record = await local.add(exe)
-  return { library: toLibraryDTO(await catalog.refresh()), addedId: `local:${record.id}` }
+  return { library: await library(), addedId: `local:${record.id}` }
 })
 
 ipcMain.handle(IPC.removeLocal, async (_event, gameId: unknown): Promise<LibraryDTO> => {
@@ -246,7 +258,7 @@ ipcMain.handle(IPC.removeLocal, async (_event, gameId: unknown): Promise<Library
   const game = catalog.get(gameId)
   if (!game || game.source !== 'local') throw new Error('Solo se pueden quitar juegos locales')
   await local.remove(game.nativeId)
-  return toLibraryDTO(await catalog.refresh())
+  return await library()
 })
 
 ipcMain.handle(IPC.toggleFullscreen, (event) => {
@@ -266,7 +278,7 @@ ipcMain.handle(IPC.artworkSearch, async (_event, term: unknown): Promise<Artwork
 ipcMain.handle(IPC.artworkApply, async (_event, gameId: unknown, candidateId: unknown): Promise<LibraryDTO> => {
   if (typeof gameId !== 'string' || typeof candidateId !== 'string') throw new Error('Datos inválidos')
   await artwork.applyCandidate(gameId, candidateId)
-  return toLibraryDTO(await catalog.refresh())
+  return await library()
 })
 
 ipcMain.handle(IPC.artworkPickFile, async (event, gameId: unknown, kind: unknown): Promise<LibraryDTO | null> => {
@@ -282,13 +294,13 @@ ipcMain.handle(IPC.artworkPickFile, async (event, gameId: unknown, kind: unknown
   if (result.canceled || !file) return null
 
   await artwork.applyFile(gameId, kind, file)
-  return toLibraryDTO(await catalog.refresh())
+  return await library()
 })
 
 ipcMain.handle(IPC.artworkClear, async (_event, gameId: unknown): Promise<LibraryDTO> => {
   if (typeof gameId !== 'string') throw new Error('Id inválido')
   await artwork.clear(gameId)
-  return toLibraryDTO(await catalog.refresh())
+  return await library()
 })
 
 ipcMain.handle(IPC.sgdbKeyStatus, async () => (await sgdbKey.get()) !== null)
@@ -339,12 +351,14 @@ ipcMain.handle(IPC.setSteamKey, async (_event, key: unknown): Promise<SteamKeySt
 
   await steamKey.set(key.trim())
   achievements.invalidate()
+  storePlaytime.invalidate('steam')
   return keyStatus()
 })
 
 ipcMain.handle(IPC.clearSteamKey, async () => {
   await steamKey.clear()
   achievements.invalidate()
+  storePlaytime.invalidate('steam')
   return keyStatus()
 })
 
@@ -397,11 +411,13 @@ async function fileExists(path: string): Promise<boolean> {
 
 // --- Dominio -> DTO ---
 
-function toLibraryDTO(snapshot: CatalogSnapshot): LibraryDTO {
-  return { games: snapshot.games.map(toGameDTO), errors: snapshot.errors }
+// La biblioteca (local, rápida) y las horas de las tiendas (red, con caché) se piden EN PARALELO.
+async function library(): Promise<LibraryDTO> {
+  const [snapshot, store] = await Promise.all([catalog.refresh(), storePlaytime.all()])
+  return { games: snapshot.games.map((g) => toGameDTO(g, store.get(g.id))), errors: snapshot.errors }
 }
 
-function toGameDTO(game: Game): GameDTO {
+function toGameDTO(game: Game, store?: StorePlaytime): GameDTO {
   // ?v=<archivo>: si la imagen cambia, cambia la URL, y Chromium no muestra la vieja desde su caché.
   const media = (kind: string, path: string) =>
     `media://game/${encodeURIComponent(game.id)}/${kind}?v=${encodeURIComponent(basename(path))}`
@@ -412,14 +428,21 @@ function toGameDTO(game: Game): GameDTO {
     installDir: game.installDir,
     sizeBytes: game.sizeBytes,
     lastPlayed: game.lastPlayed?.getTime() ?? null,
-    playtime: game.playtime ? toPlaytimeDTO(summarizePlaytime(game.playtime, new Date())) : null,
+    playtime: toPlaytimeDTO(game, store),
     coverUrl: game.coverPath ? media('cover', game.coverPath) : null,
     heroUrl: game.heroPath ? media('hero', game.heroPath) : null,
   }
 }
 
-function toPlaytimeDTO(s: PlaytimeSummary): PlaytimeDTO {
+function toPlaytimeDTO(game: Game, store?: StorePlaytime): PlaytimeDTO | null {
+  if (game.playtime) return toHubPlaytimeDTO(summarizePlaytime(game.playtime, new Date()))
+  if (store) return { kind: 'store', store: game.source, totalMs: store.totalMs, recentMs: store.recentMs }
+  return null
+}
+
+function toHubPlaytimeDTO(s: PlaytimeSummary): PlaytimeDTO {
   return {
+    kind: 'hub',
     ...s,
     lastSession: s.lastSession ? { startedAt: s.lastSession.startedAt.getTime(), durationMs: s.lastSession.durationMs } : null,
   }

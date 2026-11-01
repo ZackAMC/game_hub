@@ -8,8 +8,8 @@
 import { AchievementsNotConfiguredError, type Achievement } from '../../domain/Achievement.js'
 import type { Game } from '../../domain/Game.js'
 import type { AchievementProvider } from '../../domain/ports/AchievementProvider.js'
+import { readPath, steamApiUrl as url } from './webApi.js'
 
-const API = 'https://api.steampowered.com'
 const API_KEY = /^[0-9A-F]{32}$/i
 
 export interface HttpResult {
@@ -123,18 +123,4 @@ export function mergeAchievements(
       globalPercent: percent !== undefined && Number.isFinite(percent) ? percent : null,
     }
   })
-}
-
-function url(path: string, params: Record<string, string>): string {
-  return `${API}/${path}/?${new URLSearchParams(params).toString()}`
-}
-
-// Navega un JSON desconocido sin explotar si falta un nivel. Devuelve undefined si algo no está.
-function readPath<T>(value: unknown, path: string[]): T | undefined {
-  let current = value
-  for (const key of path) {
-    if (typeof current !== 'object' || current === null) return undefined
-    current = (current as Record<string, unknown>)[key]
-  }
-  return current as T | undefined
 }

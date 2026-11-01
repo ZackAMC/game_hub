@@ -1,12 +1,25 @@
 // Estadísticas de tiempo de juego. Lo cargado a mano se aclara aparte:
 // siempre tenés que saber qué número es MEDIDO y cuál es ESTIMADO por vos.
 
-import type { PlaytimeDTO } from '../../../shared/contract'
+import type { HubPlaytimeDTO, PlaytimeDTO, StorePlaytimeDTO } from '../../../shared/contract'
 import { formatDuration, timeAgo } from '../../../shared/format'
 
 export function PlaytimeStats({ playtime }: { playtime: PlaytimeDTO }) {
   if (playtime.totalMs === 0) return null
+  return playtime.kind === 'hub' ? <HubStats playtime={playtime} /> : <StoreStats playtime={playtime} />
+}
 
+// Steam solo informa total y últimas 2 semanas: mostramos eso y decimos de dónde sale.
+function StoreStats({ playtime }: { playtime: StorePlaytimeDTO }) {
+  return (
+    <div className="playtime">
+      <Stat label="Total" value={formatDuration(playtime.totalMs)} note={`según ${playtime.store === 'steam' ? 'Steam' : playtime.store}`} />
+      <Stat label="Últimas 2 semanas" value={playtime.recentMs > 0 ? formatDuration(playtime.recentMs) : '—'} />
+    </div>
+  )
+}
+
+function HubStats({ playtime }: { playtime: HubPlaytimeDTO }) {
   return (
     <div className="playtime">
       <Stat

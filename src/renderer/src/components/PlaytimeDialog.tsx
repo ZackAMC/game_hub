@@ -11,7 +11,9 @@ interface Props {
 }
 
 export function PlaytimeDialog({ game, onSave, onClose }: Props) {
-  const currentHours = (game.playtime?.manualMs ?? 0) / 3_600_000
+  // Solo los juegos medidos por el hub tienen tiempo manual.
+  const hub = game.playtime?.kind === 'hub' ? game.playtime : null
+  const currentHours = (hub?.manualMs ?? 0) / 3_600_000
   const [value, setValue] = useState(currentHours > 0 ? String(Math.round(currentHours * 10) / 10) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +33,7 @@ export function PlaytimeDialog({ game, onSave, onClose }: Props) {
     }
   }
 
-  const measured = game.playtime?.measuredMs ?? 0
+  const measured = hub?.measuredMs ?? 0
 
   return (
     <div className="overlay" role="dialog" aria-label="Tiempo previo" onClick={onClose}>

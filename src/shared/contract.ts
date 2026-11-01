@@ -45,19 +45,32 @@ export interface GameDTO {
   installDir: string
   sizeBytes: number | null
   lastPlayed: number | null // epoch en ms: un número cruza IPC sin ambigüedades
-  playtime: PlaytimeDTO | null // null = la fuente no mide tiempo (Steam)
+  playtime: PlaytimeDTO | null // null = sin datos (Steam sin API key, perfil privado, nunca jugado)
   coverUrl: string | null // media://... servido por Main, nunca una ruta de disco
   heroUrl: string | null
 }
 
 // Resúmenes YA calculados por Main: la UI solo los muestra.
-export interface PlaytimeDTO {
+// Dos ORÍGENES con datos distintos: no se fuerzan a la misma forma.
+export type PlaytimeDTO = HubPlaytimeDTO | StorePlaytimeDTO
+
+// Medido por el hub: hay sesiones, así que hay semana, mes y última sesión.
+export interface HubPlaytimeDTO {
+  kind: 'hub'
   totalMs: number
   measuredMs: number
   manualMs: number
   weekMs: number
   monthMs: number
   lastSession: { startedAt: number; durationMs: number } | null
+}
+
+// Informado por la tienda: solo lo que ella expone.
+export interface StorePlaytimeDTO {
+  kind: 'store'
+  store: SourceDTO
+  totalMs: number
+  recentMs: number // últimas 2 semanas
 }
 
 export type UninstallPreviewDTO =
