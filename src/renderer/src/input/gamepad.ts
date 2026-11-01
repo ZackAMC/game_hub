@@ -5,6 +5,7 @@
 //   0 A / ✕     1 B / ○     2 X / □     3 Y / △
 //   4 LB / L1   5 RB / R1   6 LT / L2   7 RT / R2
 //   8 View / Create   9 Menu / Options
+//   16 Guide / PS (el botón central)
 //   12 ↑  13 ↓  14 ←  15 →   (cruceta)
 //   axes[0], axes[1] = stick izquierdo (-1..1)
 
@@ -104,4 +105,11 @@ export function detectPadKind(id: string): PadKind {
   if (/054c|dualsense|dualshock|wireless controller/i.test(id)) return 'playstation'
   if (/045e|xbox|xinput/i.test(id)) return 'xbox'
   return 'generic'
+}
+
+// El botón central (PS / Guide) de CUALQUIER mando con mapping estándar.
+export const HOME_BUTTON = 16
+
+export function homePressed(pads: readonly (PadSnapshot | null)[]): boolean {
+  return pads.some((p) => p !== null && p.mapping === 'standard' && p.buttons[HOME_BUTTON]?.pressed === true)
 }

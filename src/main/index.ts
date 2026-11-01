@@ -1,7 +1,7 @@
 // PROCESO MAIN: arma las piezas (composition root) y atiende a la UI por IPC.
 // Es el único lugar que sabe que existen Electron, Steam y el JSON a la vez.
 
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, net, protocol, shell, Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { access } from 'node:fs/promises'
@@ -18,6 +18,7 @@ import { isValidApiKeyFormat, SteamAchievements, type HttpResult } from '../adap
 import { SteamPlaytime } from '../adapters/steam/SteamPlaytime.js'
 import { SteamSource } from '../adapters/steam/SteamSource.js'
 import { folderStats } from '../adapters/system/folderStats.js'
+import { forceForeground } from '../adapters/system/foreground.js'
 import { isProcessRunning } from '../adapters/system/processes.js'
 import { AchievementService, type AchievementResult } from '../application/AchievementService.js'
 import { ArtworkService } from '../application/ArtworkService.js'
@@ -27,8 +28,11 @@ import { StorePlaytimeService } from '../application/StorePlaytimeService.js'
 import type { Game } from '../domain/Game.js'
 import { summarizePlaytime, type PlaytimeSummary, type StorePlaytime } from '../domain/Playtime.js'
 import type { SecretStore } from '../domain/ports/SecretStore.js'
+import iconPath from '../../build/icon.png?asset'
+import { Curtain } from './curtain.js'
 import {
   IPC,
+  type CurtainState,
   type AchievementsDTO,
   type ArtworkCandidateDTO,
   type GameDTO,
@@ -57,6 +61,9 @@ let artwork: ArtworkService
 let sgdbKey: SecretStore
 let sgdb: SteamGridDbArtwork
 let sessions: SessionTracker
+let curtain: Curtain
+let tray: Tray | null = null
+let quitting = false
 let storePlaytime: StorePlaytimeService
 
 function compose(): void {
@@ -108,35 +115,94 @@ function compose(): void {
   })
 }
 
-function createWindow(): void {
-  const win = new BrowserWindow({
-    width: 1440,
-    height: 860,
-    minWidth: 1000,
-    minHeight: 640,
+// Las preferencias comunes de ambas ventanas: aisladas, con sandbox, y solo el preload como puente.
+const secureWebPreferences: Electron.WebPreferences = {
+  preload: join(here, '../preload/index.cjs'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+}
+
+function loadPage(win: BrowserWindow, page: 'index' | 'listener'): void {
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) void win.loadURL(`${devUrl}/${page}.html`)
+  else void win.loadFile(join(here, `../renderer/${page}.html`))
+}
+
+function createWindows(): void {
+  const main = new BrowserWindow({
+    show: false,
+    frame: false,
+    transparent: true, // mientras la cortina se desliza, se ve el escritorio debajo
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: false,
+    skipTaskbar: true, // la app "es" el escritorio: se llega por el botón, el atajo o la bandeja
     title: 'Game Hub',
-    backgroundColor: '#07090d', // evita el "flash" blanco al abrir
-    autoHideMenuBar: true,
-    // Empaquetada, Windows usa el ícono del .exe. En desarrollo el proceso es electron.exe: se lo damos a la ventana.
-    icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build', 'icon.png'),
+    icon: iconPath,
     webPreferences: {
-      preload: join(here, '../preload/index.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
+      ...secureWebPreferences,
       // Los navegadores bloquean el audio hasta el primer clic. Un launcher tiene que sonar desde el inicio.
       autoplayPolicy: 'no-user-gesture-required',
     },
   })
+  if (app.isPackaged) main.removeMenu() // sin menú: F11 y compañía no deben pelear con la cortina
 
-  // F11 (menú por defecto de Electron), el botón de la UI o lo que sea: Main es la fuente de verdad
-  // y le avisa a la UI cada cambio.
-  win.on('enter-full-screen', () => win.webContents.send(IPC.fullscreenChanged, true))
-  win.on('leave-full-screen', () => win.webContents.send(IPC.fullscreenChanged, false))
+  // El oyente: invisible, de 1 px, siempre encima y atravesable por el mouse.
+  const listener = new BrowserWindow({
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    width: 1,
+    height: 1,
+    resizable: false,
+    movable: false,
+    skipTaskbar: true,
+    focusable: false, // nunca le roba el foco a lo que estés usando
+    alwaysOnTop: true,
+    hasShadow: false,
+    webPreferences: { ...secureWebPreferences, backgroundThrottling: false },
+  })
+  listener.setAlwaysOnTop(true, 'screen-saver') // encima de todo: si queda tapada, Chromium deja de darle el mando
+  listener.setIgnoreMouseEvents(true) // los clics la atraviesan
+  listener.removeMenu()
 
-  const devUrl = process.env['ELECTRON_RENDERER_URL']
-  if (devUrl) void win.loadURL(devUrl)
-  else void win.loadFile(join(here, '../renderer/index.html'))
+  curtain = new Curtain(main, listener, (win) => {
+    try {
+      forceForeground(win.getNativeWindowHandle())
+    } catch (error) {
+      console.warn('[hub] no se pudo traer la cortina al frente:', error) // sin foco, pero visible
+    }
+  })
+
+  // Alt+F4 sobre la cortina la RECOGE: salir de la app es explícito, desde la bandeja.
+  main.on('close', (event) => {
+    if (quitting) return
+    event.preventDefault()
+    curtain.up()
+  })
+
+  loadPage(main, 'index')
+  loadPage(listener, 'listener')
+  listener.once('ready-to-show', () => curtain.showListener())
+  // Arranque normal: la cortina baja. Con --hidden (inicio de Windows) queda recogida.
+  main.once('ready-to-show', () => {
+    if (!process.argv.includes('--hidden')) curtain.down()
+  })
+}
+
+function createTray(): void {
+  tray = new Tray(iconPath)
+  tray.setToolTip('Game Hub')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Mostrar Game Hub', click: () => curtain.down() },
+      { type: 'separator' },
+      { label: 'Salir', click: () => app.quit() },
+    ]),
+  )
+  tray.on('click', () => curtain.toggle())
 }
 
 // media://game/<id>/cover  ->  la portada de ESE juego. Solo rutas que el catálogo conoce:
@@ -159,7 +225,6 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
   const game = catalog.get(gameId)
   if (!game) return
 
-  const win = BrowserWindow.fromWebContents(event.sender)
   const send = (state: SessionDTO['state'], durationMs: number | null = null) => {
     if (!event.sender.isDestroyed()) event.sender.send(IPC.sessionChanged, { gameId, state, durationMs })
   }
@@ -170,14 +235,18 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
   void sessions.track(game, {
     onStarted: () => {
       send('running')
-      win?.minimize() // el juego queda solo en pantalla
+      // La cortina sube y el juego queda solo en pantalla.
+      curtain.setListenerActive(false)
+      curtain.up()
     },
     onEnded: async (_g, durationMs) => {
       trackedGameId = null
       if (game.source === 'local') await local.recordSession(game.nativeId, new Date(Date.now() - durationMs), durationMs)
       // Steam sube las horas al terminar la partida: el próximo refresco las vuelve a pedir.
       else storePlaytime.invalidate(game.source)
-      bringToFront(win)
+      // Como en una consola: terminás de jugar y volvés al inicio.
+      curtain.setListenerActive(true)
+      curtain.down()
       send('ended', durationMs)
     },
     onNeverStarted: () => {
@@ -237,17 +306,6 @@ function sessionsBusyWith(gameId: string): boolean {
   return trackedGameId === gameId
 }
 
-// Windows no deja que una app "se robe" el foco así nomás (para que nada te interrumpa mientras
-// escribís). El truco estándar: ponerla "siempre visible" un instante, enfocarla y sacarle ese modo.
-function bringToFront(win: BrowserWindow | null): void {
-  if (!win || win.isDestroyed()) return
-  if (win.isMinimized()) win.restore()
-  win.show()
-  win.setAlwaysOnTop(true)
-  win.focus()
-  win.setAlwaysOnTop(false)
-}
-
 ipcMain.handle(IPC.addLocal, async (event): Promise<{ library: LibraryDTO; addedId: string } | null> => {
   const win = BrowserWindow.fromWebContents(event.sender)
   const options: Electron.OpenDialogOptions = {
@@ -271,12 +329,14 @@ ipcMain.handle(IPC.removeLocal, async (_event, gameId: unknown): Promise<Library
   return await library()
 })
 
-ipcMain.handle(IPC.toggleFullscreen, (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender)
-  win?.setFullScreen(!win.isFullScreen())
-})
+// --- Cortina ---
 
-ipcMain.handle(IPC.isFullscreen, (event) => BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false)
+ipcMain.handle(IPC.curtainState, (): CurtainState => curtain.current)
+
+ipcMain.handle(IPC.setCurtain, (_event, state: unknown) => {
+  if (state !== 'up' && state !== 'down') throw new Error('Estado inválido')
+  curtain.set(state)
+})
 
 // --- Imágenes de juegos locales ---
 
@@ -468,9 +528,26 @@ function toAchievementsDTO(result: AchievementResult): AchievementsDTO {
 
 // --- Ciclo de vida ---
 
-void app.whenReady().then(() => {
-  compose()
-  protocol.handle('media', serveMedia)
-  createWindow()
-})
-app.on('window-all-closed', () => app.quit())
+// UNA sola instancia: si ya está corriendo (por ejemplo, desde el inicio de Windows) y la abrís
+// de nuevo, no se crea otra: la que existe baja la cortina.
+const ATAJO = 'CommandOrControl+Alt+G'
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => curtain?.down())
+
+  void app.whenReady().then(() => {
+    compose()
+    protocol.handle('media', serveMedia)
+    createWindows()
+    createTray()
+    // Atajo global: la alternativa sin mando. Funciona siempre, también con un juego abierto.
+    if (!globalShortcut.register(ATAJO, () => curtain.toggle())) console.warn(`[hub] el atajo ${ATAJO} está ocupado`)
+  })
+
+  app.on('before-quit', () => {
+    quitting = true
+  })
+  app.on('will-quit', () => globalShortcut.unregisterAll())
+}

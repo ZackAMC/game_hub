@@ -5,7 +5,7 @@
 //   JUEGO   -> Jugar · Info · ⋯ (opciones)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ArtworkKindDTO, GameDTO, LibraryDTO, SessionDTO, SourceDTO, SteamKeyStatusDTO } from '../../shared/contract'
+import type { ArtworkKindDTO, CurtainState, GameDTO, LibraryDTO, SessionDTO, SourceDTO, SteamKeyStatusDTO } from '../../shared/contract'
 import { formatBytes, formatDuration, timeAgo } from '../../shared/format'
 import { AchievementSummary } from './components/AchievementSummary'
 import { AchievementsPanel } from './components/AchievementsPanel'
@@ -48,7 +48,7 @@ export function App() {
   const [session, setSession] = useState<SessionDTO | null>(null)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [muted, setMuted] = useState(() => sounds.isMuted())
-  const [fullscreen, setFullscreen] = useState(false)
+  const [curtain, setCurtain] = useState<CurtainState>('up')
   const [modal, setModal] = useState<Modal>('none')
   const [keyStatus, setKeyStatus] = useState<SteamKeyStatusDTO | null>(null)
   const [padDebug, setPadDebug] = useState(false)
@@ -92,10 +92,10 @@ export function App() {
     window.hub.list().then(applyLibrary, (err: unknown) => notify(message(err), 'error'))
   }, [applyLibrary, notify])
 
-  // Estado inicial + suscripción. onFullscreenChange devuelve la desuscripción para el cleanup.
+  // La cortina la maneja Main (botón, atajo, juego que arranca). Acá solo se anima según su estado.
   useEffect(() => {
-    void window.hub.isFullscreen().then(setFullscreen)
-    return window.hub.onFullscreenChange(setFullscreen)
+    void window.hub.curtainState().then(setCurtain)
+    return window.hub.onCurtainChange(setCurtain)
   }, [])
 
   const visible = useMemo(
@@ -478,9 +478,9 @@ export function App() {
     if (!next) sounds.tick() // confirmación audible de que volvió el sonido
   }
 
-  function toggleFullscreen() {
-    sounds.tick()
-    void window.hub.toggleFullscreen()
+  function collapse() {
+    sounds.back()
+    void window.hub.setCurtain('up')
   }
 
   // Ayuda del mando según dónde estés.
@@ -499,7 +499,7 @@ export function App() {
             }
 
   return (
-    <div className={`hub view-${view}`}>
+    <div className={`hub curtain ${curtain} view-${view}`}>
       <Backdrop game={selected} />
       <TopBar
         filter={filter}
@@ -507,8 +507,7 @@ export function App() {
         onAdd={addLocal}
         muted={muted}
         onToggleMute={toggleMute}
-        fullscreen={fullscreen}
-        onToggleFullscreen={toggleFullscreen}
+        onCollapse={collapse}
       />
 
       <main className="stage">

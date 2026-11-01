@@ -5,9 +5,9 @@ export const IPC = {
   launch: 'games:launch',
   addLocal: 'games:add-local',
   removeLocal: 'games:remove-local',
-  toggleFullscreen: 'window:toggle-fullscreen',
-  isFullscreen: 'window:is-fullscreen',
-  fullscreenChanged: 'window:fullscreen-changed',
+  curtainState: 'curtain:state',
+  setCurtain: 'curtain:set',
+  curtainChanged: 'curtain:changed',
   achievements: 'achievements:get',
   steamKeyStatus: 'steam-key:status',
   setSteamKey: 'steam-key:set',
@@ -38,6 +38,9 @@ export interface ArtworkCandidateDTO {
 export type ArtworkKindDTO = 'cover' | 'hero'
 
 export type SourceDTO = 'steam' | 'local'
+
+// La app es una CORTINA sobre el monitor principal: 'down' = a la vista, 'up' = recogida.
+export type CurtainState = 'up' | 'down'
 
 export interface GameDTO {
   id: string
@@ -128,10 +131,10 @@ export interface GameHubApi {
   launch(gameId: string): Promise<void>
   addLocal(): Promise<{ library: LibraryDTO; addedId: string } | null> // null = el usuario canceló el diálogo
   removeLocal(gameId: string): Promise<LibraryDTO>
-  toggleFullscreen(): Promise<void>
-  isFullscreen(): Promise<boolean>
-  // Main avisa cada cambio, también cuando lo provoca F11: la UI nunca queda desincronizada.
-  onFullscreenChange(listener: (fullscreen: boolean) => void): () => void
+  curtainState(): Promise<CurtainState>
+  setCurtain(state: CurtainState): Promise<void>
+  // Main avisa cada cambio (botón, atajo, juego que arranca): ninguna ventana queda desincronizada.
+  onCurtainChange(listener: (state: CurtainState) => void): () => void
   achievements(gameId: string): Promise<AchievementsDTO>
   steamKeyStatus(): Promise<SteamKeyStatusDTO>
   setSteamKey(key: string): Promise<SteamKeyStatusDTO> // valida y verifica antes de guardar

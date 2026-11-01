@@ -1,6 +1,7 @@
 // electron-vite compila las TRES capas por separado (main, preload, renderer).
 // Entradas por defecto: src/main/index.ts, src/preload/index.ts, src/renderer/index.html
 
+import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
@@ -19,5 +20,15 @@ export default defineConfig({
   },
   renderer: {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        // DOS páginas: la app (la cortina) y el "oyente": una ventana invisible que escucha el botón
+        // PS/Guide aunque la cortina esté recogida. Es mínima: no carga biblioteca ni sonidos.
+        input: {
+          index: resolve('src/renderer/index.html'),
+          listener: resolve('src/renderer/listener.html'),
+        },
+      },
+    },
   },
 })

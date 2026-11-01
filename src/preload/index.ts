@@ -1,19 +1,19 @@
 // PRELOAD: el puente. Expone una API CHICA y explícita; nunca ipcRenderer entero.
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IPC, type GameHubApi, type SessionDTO } from '../shared/contract.js'
+import { IPC, type CurtainState, type GameHubApi, type SessionDTO } from '../shared/contract.js'
 
 const api: GameHubApi = {
   list: () => ipcRenderer.invoke(IPC.list),
   launch: (gameId) => ipcRenderer.invoke(IPC.launch, gameId),
   addLocal: () => ipcRenderer.invoke(IPC.addLocal),
   removeLocal: (gameId) => ipcRenderer.invoke(IPC.removeLocal, gameId),
-  toggleFullscreen: () => ipcRenderer.invoke(IPC.toggleFullscreen),
-  isFullscreen: () => ipcRenderer.invoke(IPC.isFullscreen),
-  onFullscreenChange: (listener) => {
-    const handler = (_event: IpcRendererEvent, fullscreen: boolean): void => listener(fullscreen)
-    ipcRenderer.on(IPC.fullscreenChanged, handler)
-    return () => ipcRenderer.removeListener(IPC.fullscreenChanged, handler)
+  curtainState: () => ipcRenderer.invoke(IPC.curtainState),
+  setCurtain: (state) => ipcRenderer.invoke(IPC.setCurtain, state),
+  onCurtainChange: (listener) => {
+    const handler = (_event: IpcRendererEvent, state: CurtainState): void => listener(state)
+    ipcRenderer.on(IPC.curtainChanged, handler)
+    return () => ipcRenderer.removeListener(IPC.curtainChanged, handler)
   },
   achievements: (gameId) => ipcRenderer.invoke(IPC.achievements, gameId),
   steamKeyStatus: () => ipcRenderer.invoke(IPC.steamKeyStatus),

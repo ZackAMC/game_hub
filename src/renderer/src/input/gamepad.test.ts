@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { detectPadKind, readAllPads, readPad, RepeatController, type PadButton } from './gamepad'
+import { detectPadKind, homePressed, readAllPads, readPad, RepeatController, type PadButton } from './gamepad'
 
 function pad(pressedIndexes: number[] = [], axes: number[] = [0, 0], id = 'test', mapping = 'standard') {
   return { id, mapping, buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressedIndexes.includes(i) })), axes }
@@ -67,4 +67,14 @@ test('detectPadKind reconoce Xbox y PlayStation por nombre o vendor', () => {
   assert.equal(detectPadKind('DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)'), 'playstation')
   assert.equal(detectPadKind('Xbox 360 Controller (XInput STANDARD GAMEPAD)'), 'xbox')
   assert.equal(detectPadKind('8BitDo Pro 2 (Vendor: 2dc8)'), 'generic')
+})
+
+test('botón PS/Guide: cualquier mando estándar; los no estándar se ignoran', () => {
+  const buttons = (pressed16: boolean) => Array.from({ length: 17 }, (_, i) => ({ pressed: i === 16 && pressed16 }))
+  const ps = { id: 'DualSense', mapping: 'standard', buttons: buttons(true), axes: [] }
+  const idle = { id: 'Xbox', mapping: 'standard', buttons: buttons(false), axes: [] }
+  const phantom = { id: 'Micrófono', mapping: '', buttons: buttons(true), axes: [] }
+  assert.equal(homePressed([null, idle, ps]), true)
+  assert.equal(homePressed([idle, phantom]), false)
+  assert.equal(homePressed([]), false)
 })

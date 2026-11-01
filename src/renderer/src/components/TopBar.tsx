@@ -14,11 +14,10 @@ interface Props {
   onAdd: () => void
   muted: boolean
   onToggleMute: () => void
-  fullscreen: boolean
-  onToggleFullscreen: () => void
+  onCollapse: () => void
 }
 
-export function TopBar({ filter, onFilter, onAdd, muted, onToggleMute, fullscreen, onToggleFullscreen }: Props) {
+export function TopBar({ filter, onFilter, onAdd, muted, onToggleMute, onCollapse }: Props) {
   return (
     <header className="topbar">
       <div className="brand">Game Hub</div>
@@ -36,14 +35,10 @@ export function TopBar({ filter, onFilter, onAdd, muted, onToggleMute, fullscree
         <button className="icon-btn" onClick={onToggleMute} title={muted ? 'Activar sonidos' : 'Silenciar sonidos'}>
           {muted ? <MutedIcon /> : <SpeakerIcon />}
         </button>
-        <button
-          className="icon-btn"
-          onClick={onToggleFullscreen}
-          title={fullscreen ? 'Salir de pantalla completa (F11)' : 'Pantalla completa (F11)'}
-        >
-          {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
-        </button>
         <Clock />
+        <button className="icon-btn" onClick={onCollapse} title="Recoger (Ctrl+Alt+G)">
+          <CollapseIcon />
+        </button>
       </div>
     </header>
   )
@@ -88,18 +83,10 @@ function MutedIcon() {
   )
 }
 
-function ExpandIcon() {
+function CollapseIcon() {
   return (
     <svg {...svg}>
-      <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
-    </svg>
-  )
-}
-
-function ShrinkIcon() {
-  return (
-    <svg {...svg}>
-      <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+      <path d="m18 15-6-6-6 6" />
     </svg>
   )
 }

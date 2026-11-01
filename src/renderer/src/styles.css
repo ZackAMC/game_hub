@@ -26,7 +26,8 @@ body,
 }
 
 body {
-  background: var(--bg);
+  /* TRANSPARENTE: la ventana es una cortina. Mientras se desliza, debajo se ve el escritorio. */
+  background: transparent;
   color: var(--text);
   font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
   overflow: hidden;
@@ -46,6 +47,23 @@ button {
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ---------- Cortina ----------
+   La ventana NO se mueve: es la UI la que se desliza. Bajar es suave y con freno al final;
+   subir arranca despacio y acelera, como una persiana que se enrolla. Duración = CURTAIN_ANIMATION_MS. */
+.curtain {
+  transform: translateY(-100%);
+  transition: transform 420ms cubic-bezier(0.55, 0, 0.75, 0.2);
+  will-change: transform;
+}
+
+.curtain.down {
+  transform: translateY(0);
+  transition-timing-function: var(--ease);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 
 .stage {
