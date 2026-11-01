@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Game Hub</title>
+    <!-- CSP: scripts propios solamente. Imágenes: propias, del protocolo media:// que controla Main,
+         y los íconos de logros de los servidores de imágenes de Steam. Nada más. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: media: https://steamcdn-a.akamaihd.net https://*.steamstatic.com https://cdn2.steamgriddb.com"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

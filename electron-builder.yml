@@ -1,0 +1,25 @@
+# Empaquetado: toma lo que compiló electron-vite (out/) y lo mete junto con Electron en un instalador.
+appId: dev.zackamc.gamehub
+productName: Game Hub
+copyright: Copyright © 2026 ZackAMC
+
+directories:
+  output: dist # acá aparece "Game Hub Setup x.y.z.exe"
+
+# Solo lo compilado. El código fuente, los tests y la configuración NO viajan en el instalador.
+files:
+  - out/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false # asistente con pasos, en lugar de instalar sin preguntar
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Game Hub
+  deleteAppDataOnUninstall: false # al desinstalar, se conserva tu lista de juegos locales

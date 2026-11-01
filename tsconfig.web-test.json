@@ -1,0 +1,9 @@
+// Tests del renderer: mismo mundo web, pero corren en Node (node:test), así que acá SÍ van los tipos de Node.
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/renderer/**/*.test.ts"],
+  "exclude": []
+}

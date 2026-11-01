@@ -1,0 +1,17 @@
+// Mundo NODE: dominio, casos de uso, adaptadores, main y preload.
+// Lo ejecuta Node/Electron, así que la resolución de módulos es la de Node (NodeNext).
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": ["src/renderer"]
+}
