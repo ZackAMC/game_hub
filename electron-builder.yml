@@ -4,6 +4,7 @@ productName: Game Hub
 copyright: Copyright © 2026 ZackAMC
 
 directories:
+  buildResources: build # icon.ico/icon.png; la fuente editable es build/icon.svg
   output: dist # acá aparece "Game Hub Setup x.y.z.exe"
 
 # Solo lo compilado. El código fuente, los tests y la configuración NO viajan en el instalador.
@@ -12,6 +13,7 @@ files:
   - package.json
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]

@@ -117,6 +117,8 @@ function createWindow(): void {
     title: 'Game Hub',
     backgroundColor: '#07090d', // evita el "flash" blanco al abrir
     autoHideMenuBar: true,
+    // Empaquetada, Windows usa el ícono del .exe. En desarrollo el proceso es electron.exe: se lo damos a la ventana.
+    icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build', 'icon.png'),
     webPreferences: {
       preload: join(here, '../preload/index.cjs'),
       contextIsolation: true,

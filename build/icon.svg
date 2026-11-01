@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Game Hub: un "play" que mezcla el azul de Steam con el violeta de los juegos locales,
+       dentro de un anillo (el hub) con un punto en órbita. Fuente de icon.png / icon.ico. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141c33"/>
+      <stop offset="1" stop-color="#07090d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#66c0f4"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="400" fill="url(#glow)"/>
+  <rect x="34" y="34" width="956" height="956" rx="222" fill="none" stroke="#ffffff" stroke-opacity="0.09" stroke-width="4"/>
+
+  <!-- Anillo abierto arriba a la derecha; el hueco lo ocupa el punto en órbita. -->
+  <circle cx="512" cy="512" r="300" fill="none" stroke="url(#mark)" stroke-width="40" stroke-linecap="round"
+          stroke-dasharray="1580 305" transform="rotate(-48 512 512)"/>
+  <circle cx="580" cy="220" r="30" fill="#a78bfa"/>
+
+  <!-- Play con esquinas redondeadas (trazo del mismo color que el relleno). -->
+  <path d="M446 384 L446 640 L668 512 Z" fill="url(#mark)" stroke="url(#mark)" stroke-width="64" stroke-linejoin="round"/>
+</svg>
