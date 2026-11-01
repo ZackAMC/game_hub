@@ -19,6 +19,7 @@ export const IPC = {
   artworkClear: 'artwork:clear',
   sessionChanged: 'session:changed',
   setManualPlaytime: 'playtime:set-manual',
+  renameLocal: 'games:rename-local',
   openFolder: 'games:open-folder',
   uninstallPreview: 'games:uninstall-preview',
   uninstall: 'games:uninstall',
@@ -142,6 +143,7 @@ export interface GameHubApi {
   artworkClear(gameId: string): Promise<LibraryDTO>
   onSessionChange(listener: (session: SessionDTO) => void): () => void
   setManualPlaytime(gameId: string, hours: number): Promise<LibraryDTO>
+  renameLocal(gameId: string, title: string): Promise<LibraryDTO>
   openFolder(gameId: string): Promise<void> // por ID: la UI nunca manda una ruta
   uninstallPreview(gameId: string): Promise<UninstallPreviewDTO> // solo juegos locales
   uninstall(gameId: string): Promise<UninstallResultDTO>

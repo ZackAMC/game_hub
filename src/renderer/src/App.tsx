@@ -17,6 +17,7 @@ import { GameShelf } from './components/GameShelf'
 import { HomeSummary } from './components/HomeSummary'
 import { PlaytimeDialog } from './components/PlaytimeDialog'
 import { PlaytimeStats } from './components/PlaytimeStats'
+import { RenameDialog } from './components/RenameDialog'
 import { SteamKeyDialog } from './components/SteamKeyDialog'
 import { Toast, type ToastMessage } from './components/Toast'
 import { TopBar, type Filter } from './components/TopBar'
@@ -29,7 +30,7 @@ import { useAchievements } from './useAchievements'
 import { useNavigation, type NavAction } from './useNavigation'
 
 type View = 'home' | 'game'
-type Modal = 'none' | 'achievements' | 'steam-key' | 'artwork' | 'playtime' | 'uninstall'
+type Modal = 'none' | 'achievements' | 'steam-key' | 'artwork' | 'playtime' | 'uninstall' | 'rename'
 
 // Un ítem del menú ⋯: lo que se ve (MenuItem) + lo que hace.
 interface MenuEntry extends MenuItem {
@@ -306,6 +307,7 @@ export function App() {
           : []),
         ...(selected.source === 'local'
           ? [
+              { id: 'rename', label: 'Cambiar nombre', run: () => openModal('rename') },
               { id: 'artwork', label: 'Cambiar imagen', run: () => openModal('artwork') },
               { id: 'playtime', label: 'Tiempo previo', run: () => openModal('playtime') },
             ]
@@ -604,6 +606,18 @@ export function App() {
           game={selected}
           onSave={async (hours) => {
             applyLibrary(await window.hub.setManualPlaytime(selected.id, hours))
+            sounds.confirm()
+            setModal('none')
+          }}
+          onClose={closeModal}
+        />
+      )}
+      {modal === 'rename' && selected?.source === 'local' && (
+        <RenameDialog
+          key={selected.id}
+          game={selected}
+          onSave={async (title) => {
+            applyLibrary(await window.hub.renameLocal(selected.id, title))
             sounds.confirm()
             setModal('none')
           }}

@@ -153,3 +153,13 @@ test('guessTitle limpia guiones bajos y puntos', () => {
   assert.equal(guessTitle('F:\\Juegos\\Hollow_Knight\\hollow_knight.exe'), 'Hollow Knight')
   assert.equal(guessTitle('F:\\juego.exe'), 'juego')
 })
+
+test('renombrar limpia el nombre y rechaza uno vacío', async () => {
+  const { source } = setup()
+  await source.add('F:\\Juegos\\Hades\\Hades.exe')
+  await source.rename('id1', '  God of War\n  III  ')
+  const [game] = await source.list()
+  assert.equal(game?.title, 'God of War III')
+  await assert.rejects(source.rename('id1', '   '), /vacío/)
+  await assert.rejects(source.rename('id1', 'x'.repeat(101)), /100 caracteres/)
+})

@@ -22,3 +22,14 @@ export interface Game {
 export function gameId(source: SourceId, nativeId: string): string {
   return `${source}:${nativeId}`
 }
+
+export const MAX_TITLE_LENGTH = 100
+
+// REGLA: un nombre que pone el usuario. Sin caracteres de control (saltos de línea, tabs),
+// espacios colapsados y un largo razonable. Lanza si queda vacío.
+export function normalizeTitle(raw: string): string {
+  const title = raw.replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()
+  if (!title) throw new Error('El nombre no puede quedar vacío')
+  if (title.length > MAX_TITLE_LENGTH) throw new Error(`El nombre puede tener hasta ${MAX_TITLE_LENGTH} caracteres`)
+  return title
+}

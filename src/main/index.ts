@@ -185,6 +185,14 @@ ipcMain.handle(IPC.launch, async (event, gameId: unknown) => {
   })
 })
 
+ipcMain.handle(IPC.renameLocal, async (_event, gameId: unknown, title: unknown): Promise<LibraryDTO> => {
+  if (typeof gameId !== 'string' || typeof title !== 'string') throw new Error('Datos inválidos')
+  const game = catalog.get(gameId)
+  if (!game || game.source !== 'local') throw new Error('Solo se puede renombrar un juego local')
+  await local.rename(game.nativeId, title) // la regla del nombre la aplica el dominio
+  return await library()
+})
+
 ipcMain.handle(IPC.setManualPlaytime, async (_event, gameId: unknown, hours: unknown): Promise<LibraryDTO> => {
   if (typeof gameId !== 'string') throw new Error('Id inválido')
   // Límite razonable: 100.000 h son más de 11 años sin dormir.

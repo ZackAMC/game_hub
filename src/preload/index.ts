@@ -30,6 +30,7 @@ const api: GameHubApi = {
     return () => ipcRenderer.removeListener(IPC.sessionChanged, handler)
   },
   setManualPlaytime: (gameId, hours) => ipcRenderer.invoke(IPC.setManualPlaytime, gameId, hours),
+  renameLocal: (gameId, title) => ipcRenderer.invoke(IPC.renameLocal, gameId, title),
   openFolder: (gameId) => ipcRenderer.invoke(IPC.openFolder, gameId),
   uninstallPreview: (gameId) => ipcRenderer.invoke(IPC.uninstallPreview, gameId),
   uninstall: (gameId) => ipcRenderer.invoke(IPC.uninstall, gameId),

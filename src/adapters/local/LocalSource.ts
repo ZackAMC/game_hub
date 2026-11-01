@@ -2,7 +2,7 @@
 // A diferencia de Steam, acá NOSOTROS somos la fuente de verdad: guardamos la lista en un LocalGameStore.
 
 import { basename, dirname, extname } from 'node:path'
-import { gameId, type Game } from '../../domain/Game.js'
+import { gameId, normalizeTitle, type Game } from '../../domain/Game.js'
 import type { GameSource, UninstallOutcome } from '../../domain/ports/GameSource.js'
 import { checkUninstallFolder } from '../../domain/UninstallGuard.js'
 import type { LocalGameRecord, LocalGameStore } from '../../domain/ports/LocalGameStore.js'
@@ -63,6 +63,11 @@ export class LocalSource implements GameSource {
   async setManualPlaytime(nativeId: string, ms: number): Promise<void> {
     if (!Number.isFinite(ms) || ms < 0) throw new Error('Tiempo inválido')
     await this.update(nativeId, (r) => ({ ...r, manualPlaytimeMs: Math.round(ms) }))
+  }
+
+  async rename(nativeId: string, title: string): Promise<void> {
+    const clean = normalizeTitle(title)
+    await this.update(nativeId, (r) => ({ ...r, title: clean }))
   }
 
   async add(executable: string, title?: string): Promise<LocalGameRecord> {
